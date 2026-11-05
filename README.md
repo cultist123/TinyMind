@@ -88,12 +88,35 @@ python eval.py --weight pretrain --max_new_tokens 128 --device cpu
 ## 代码结构
 
 ```text
-model/TinyModel.py         RMSNorm → RoPE → GQA → FFN → 完整模型
-model/__init__.py          模型配置
-dataset/lm_dataset.py      分词、padding、标签与 loss mask
-trainer/train_pretrain.py  预训练循环
-trainer/trainer_utils.py   初始化、学习率、检查点与分布式工具
-eval.py                   加载权重与生成
-model/model_lora.py        LoRA 适配器
-torch_methods/            PyTorch 基础操作示例
+TinyMind/
+├── model/
+│   ├── __init__.py          # 模型配置
+│   ├── TinyModel.py         # RMSNorm、RoPE、GQA、FFN 与完整模型
+│   ├── model_lora.py        # LoRA 适配器
+│   ├── tokenizer.json
+│   ├── tokenizer_config.json
+│   └── merhod/              # 注意力与归一化模块练习
+│       ├── gqa.py
+│       ├── rmsnorm.py
+│       └── rpoe.py
+├── dataset/
+│   ├── __init__.py
+│   └── lm_dataset.py        # 预训练、SFT 与 DPO 数据处理
+├── trainer/
+│   ├── train_pretrain.py    # 预训练
+│   ├── train_full_sft.py    # 全参数微调
+│   ├── train_lora.py        # LoRA 微调
+│   ├── train_dpo.py         # DPO
+│   ├── train_ppo.py         # PPO
+│   ├── train_grpo.py        # GRPO 脚本占位
+│   └── trainer_utils.py     # 初始化、学习率、检查点与分布式工具
+├── torch_methods/          # PyTorch 基础操作练习
+├── src/
+│   └── minimind/
+│       └── __init__.py
+├── eval.py                 # 权重加载与文本生成
+├── main.py
+├── pyproject.toml          # 项目配置与依赖
+├── uv.lock
+└── README.md
 ```
