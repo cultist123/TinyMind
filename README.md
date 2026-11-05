@@ -1,8 +1,22 @@
 # TinyMind
 
-从零手写的小型中文语言模型，用约 **26M 参数**理解 Transformer 与语言模型训练。
+基于 [MiniMind](https://github.com/jingyaogong/minimind) 改编与手写复现的小型中文语言模型，用约 **26M 参数**理解 Transformer 与语言模型训练。
 
 TinyMind 是一个面向学习与实验的 PyTorch 项目：从 RMSNorm、RoPE、分组查询注意力到自回归语言建模，逐步实现模型的核心组件，并提供预训练、文本生成、数据处理和 LoRA 适配器代码。代码中保留了较多中文注释，方便对照公式阅读与修改。
+
+## 项目来源与学习笔记
+
+TinyMind 由 [MiniMind](https://github.com/jingyaogong/minimind) 改编而来，是我在学习原项目过程中逐步手写复现、整理和修改的实验仓库。模型结构与训练流程参考 MiniMind；本仓库记录个人对核心模块、张量数据流和训练过程的理解与实践。感谢原项目作者提供的开源实现与学习资源。
+
+更详细的学习过程、公式推导和代码拆解，可以阅读我的[个人博客](https://cultist123.github.io/)中的对应文章：
+
+| 学习文章 | 主要内容 | 对应代码 |
+| --- | --- | --- |
+| [MiniMind：模型实现与张量数据流](https://cultist123.github.io/posts/minimind/) | 本项目的主要学习笔记，涵盖模型架构、GQA、残差连接、FFN 与张量数据流 | [`model/TinyModel.py`](model/TinyModel.py) 中的 `Attention`、`FeedForward`、`TinyMindBlock` 与模型封装 |
+| [RoPE 与 YaRN：位置编码与长度外推](https://cultist123.github.io/posts/rope-yarn/) | 旋转位置编码、频率预计算、YaRN 分频缩放与实现细节 | [`model/TinyModel.py`](model/TinyModel.py) 中的 `precompute_freqs_cis`、`apply_rotary_pos_emb`，以及 [`TinyMindConfig`](model/__init__.py) 中的位置编码配置 |
+| [Transformer](https://cultist123.github.io/posts/transformer/) | 注意力机制、多头注意力、因果与填充掩码、前馈网络等基础知识 | 阅读注意力与 Transformer Block 实现前的基础补充 |
+
+建议先读 Transformer 基础，再结合 MiniMind 主文对照代码，遇到位置编码细节时阅读 RoPE / YaRN 专文。博客记录的是学习过程，部分示例仍使用早期的 `MokioMind` 命名；当前仓库以 `TinyMind` 命名及实际代码为准。
 
 ## 模型架构
 
