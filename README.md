@@ -1,80 +1,67 @@
 # TinyMind
 
-基于 [MiniMind](https://github.com/jingyaogong/minimind) 改编与手写复现的小型中文语言模型，用约 **26M 参数**理解 Transformer 与语言模型训练。
+跟着 [MiniMind](https://github.com/jingyaogong/minimind) 学习大模型，边读边手写，把模型、数据处理和训练过程走一遍。
 
-TinyMind 是一个面向学习与实验的 PyTorch 项目：从 RMSNorm、RoPE、分组查询注意力到自回归语言建模，逐步实现模型的核心组件，并提供预训练、文本生成、数据处理和 LoRA 适配器代码。代码中保留了较多中文注释，方便对照公式阅读与修改。
+这个仓库是在 MiniMind 基础上改编的，默认是一个约 **26M 参数**的中文语言模型。我主要想弄清楚：一句话进去以后，张量怎么变，注意力怎么算，最后又怎么变成下一个 token。代码里留了不少中文注释，具体学习笔记放在[个人博客](https://cultist123.github.io/)。
 
-## 项目来源与学习笔记
+## 模型长什么样
 
-TinyMind 由 [MiniMind](https://github.com/jingyaogong/minimind) 改编而来，是我在学习原项目过程中逐步手写复现、整理和修改的实验仓库。模型结构与训练流程参考 MiniMind；本仓库记录个人对核心模块、张量数据流和训练过程的理解与实践。感谢原项目作者提供的开源实现与学习资源。
+8 层 Decoder，隐藏维度 512，8 个 Query 头共享 2 个 KV 头，词表大小 6400。输入 Embedding 和输出 LM Head 共享权重。
 
-更详细的学习过程、公式推导和代码拆解，可以阅读我的[个人博客](https://cultist123.github.io/)中的对应文章：
+```mermaid
+flowchart TD
+    text["输入文本"] --> tok["Tokenizer"]
+    tok --> ids["Token IDs · B × T"]
+    ids --> emb["Embedding · B × T × 512"]
 
-| 学习文章 | 主要内容 | 对应代码 |
-| --- | --- | --- |
-| [MiniMind：模型实现与张量数据流](https://cultist123.github.io/posts/minimind/) | 本项目的主要学习笔记，涵盖模型架构、GQA、残差连接、FFN 与张量数据流 | [`model/TinyModel.py`](model/TinyModel.py) 中的 `Attention`、`FeedForward`、`TinyMindBlock` 与模型封装 |
-| [RoPE 与 YaRN：位置编码与长度外推](https://cultist123.github.io/posts/rope-yarn/) | 旋转位置编码、频率预计算、YaRN 分频缩放与实现细节 | [`model/TinyModel.py`](model/TinyModel.py) 中的 `precompute_freqs_cis`、`apply_rotary_pos_emb`，以及 [`TinyMindConfig`](model/__init__.py) 中的位置编码配置 |
-| [Transformer](https://cultist123.github.io/posts/transformer/) | 注意力机制、多头注意力、因果与填充掩码、前馈网络等基础知识 | 阅读注意力与 Transformer Block 实现前的基础补充 |
+    subgraph decoder["Decoder Block × 8"]
+        direction TB
+        x["输入 x"] --> norm1["RMSNorm"]
+        norm1 --> attn["GQA 注意力<br/>8 个 Q 头 / 2 个 KV 头<br/>Q、K 应用 RoPE · 因果掩码"]
+        attn --> add1["＋"]
+        x --> add1
+        add1 --> norm2["RMSNorm"]
+        norm2 --> ffn["门控 FFN<br/>SiLU 门控 × 升维分支 → 降维"]
+        ffn --> add2["＋"]
+        add1 --> add2
+    end
 
-建议先读 Transformer 基础，再结合 MiniMind 主文对照代码，遇到位置编码细节时阅读 RoPE / YaRN 专文。博客记录的是学习过程，部分示例仍使用早期的 `MokioMind` 命名；当前仓库以 `TinyMind` 命名及实际代码为准。
+    emb --> x
+    add2 --> norm["RMSNorm"]
+    norm --> head["LM Head · 512 → 6400"]
+    head --> logits["Logits · B × T × 6400"]
+    logits --> loss["训练：预测下一个 token<br/>与右移后的标签计算交叉熵"]
+    logits --> sample["生成：取最后位置的 logits 采样<br/>把新 token 接回输入，继续生成"]
 
-## 模型架构
-
-模型采用 Decoder-only Transformer，默认配置如下：
-
-| 配置 | 默认值 |
-| --- | --- |
-| 参数规模 | 约 26M，输入嵌入与输出层共享权重 |
-| Transformer 层数 | 8 |
-| 隐藏维度 | 512 |
-| Query / KV 头数 | 8 / 2（GQA） |
-| 词表大小 | 6,400 |
-| 前馈网络 | SiLU 门控前馈网络 |
-| 归一化 | RMSNorm，Pre-Norm |
-| 位置编码 | RoPE，可选 YaRN 缩放配置 |
-| 默认预训练序列长度 | 512 tokens |
-
-注意力实现包含 PyTorch `scaled_dot_product_attention` 路径与显式注意力计算。模型通过 `PreTrainedModel` 和 `GenerationMixin` 接入 Transformers 的生成接口。
-
-> 配置中的位置编码上限为 32,768，并不表示模型已经具备相应的长上下文能力；实际效果取决于训练数据、训练长度和训练结果。
-
-## 当前进度
-
-- **模型与预训练**：已提供核心模型、JSONL 数据加载、因果语言模型损失、梯度累积、梯度裁剪、学习率调度和检查点保存代码。预训练入口包含 CUDA、Apple MPS、CPU 设备选择与 CUDA DDP 支持。
-- **文本生成**：`eval.py` 提供预设问题和交互输入两种模式，支持流式输出、温度采样与 top-p 采样。
-- **数据处理**：包含预训练、SFT 和 DPO 数据集；SFT 仅为 assistant 回复构造训练标签，DPO 构造 chosen / rejected 对话及损失掩码。
-- **LoRA**：已提供适配器注入、保存与加载工具，训练和推理入口仍需进一步整合。
-- **待完善**：部分 SFT、DPO、LoRA、PPO 训练脚本仍引用旧的 `model.MokioModel`；SFT 数据返回值与部分训练入口也尚未统一。`train_grpo.py` 目前为空。MoE 仅有配置字段，当前模型尚未实现专家网络。
-
-仓库目前未附带训练数据、模型权重或量化评测结果。以下命令基于现有代码入口整理，未代表已完成端到端训练验证。
-
-## 目录结构
-
-```text
-TinyMind/
-├── model/
-│   ├── __init__.py          # TinyMindConfig
-│   ├── TinyModel.py         # 注意力、前馈网络、Transformer 与语言模型
-│   ├── model_lora.py        # LoRA 适配器工具
-│   ├── tokenizer.json       # 分词器
-│   └── tokenizer_config.json
-├── dataset/
-│   └── lm_dataset.py        # PretrainDataset / SFTDataset / DPODataset
-├── trainer/
-│   ├── train_pretrain.py    # 预训练入口
-│   ├── trainer_utils.py     # 模型初始化、检查点、调度与分布式工具
-│   └── train_*.py           # 后续训练阶段脚本（部分待适配）
-├── torch_methods/          # PyTorch 基础操作学习示例
-├── eval.py                 # 文本生成与交互入口
-├── pyproject.toml          # Python 版本与依赖
-└── uv.lock                 # 依赖锁文件
+    classDef input fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef core fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef output fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class text,tok,ids,emb input
+    class norm1,attn,norm2,ffn,norm core
+    class head,logits,loss,sample output
 ```
 
-## 环境准备
+`B` 是 batch size，`T` 是序列长度。图中的两条跳线就是残差连接。实现主要在 [`model/TinyModel.py`](model/TinyModel.py)，参数在 [`model/__init__.py`](model/__init__.py)。
 
-项目要求 **Python 3.13 或更高版本**，主要依赖 PyTorch、Transformers、Datasets、NumPy 和 Pandas，具体版本见 [pyproject.toml](pyproject.toml)。
+## 对应的学习笔记
 
-使用 uv 安装项目依赖：
+- [MiniMind：模型实现与张量数据流](https://cultist123.github.io/posts/minimind/)：这个项目的主要笔记，记录 GQA、FFN、残差连接和模型里的张量变化。
+- [RoPE 与 YaRN：位置编码与长度外推](https://cultist123.github.io/posts/rope-yarn/)：对应 `precompute_freqs_cis` 和 `apply_rotary_pos_emb`，单独拆开讲位置编码。
+- [Transformer](https://cultist123.github.io/posts/transformer/)：注意力、多头、mask 和 FFN 的基础，可以先看这篇。
+
+笔记里有些代码还叫 `MokioMind`，是早期的命名，现在仓库统一叫 TinyMind。感谢 MiniMind 原作者的开源代码和学习资源。
+
+## 现在写到哪了
+
+模型主体、预训练入口、文本生成入口已经写好，数据集部分有 Pretrain、SFT 和 DPO，LoRA 也有注入和保存加载的实现。
+
+后面的训练阶段还在整理：部分 SFT / DPO / LoRA / PPO 脚本仍引用旧模块，SFT 的数据返回格式也需要和训练入口统一；GRPO 脚本还是空的。MoE 目前只有配置，没有专家网络，`eval.py` 也还没接入 LoRA 加载。
+
+仓库暂时没有上传训练语料、模型权重和评测结果，下面保留的是预训练与生成入口的用法，还没有做完整的端到端验证。
+
+## 跑一下
+
+需要 Python 3.13+，依赖见 [`pyproject.toml`](pyproject.toml)。使用 uv：
 
 ```bash
 git clone https://github.com/cultist123/TinyMind.git
@@ -83,30 +70,14 @@ uv sync
 source .venv/bin/activate
 ```
 
-NVIDIA GPU 环境需使用与本机驱动兼容的 PyTorch 构建。训练参数中的 `--use_wandb` 实际使用 SwanLab，若需要实验跟踪，可额外运行 `uv pip install swanlab`。
-
-## 准备数据
-
-预训练数据使用 JSONL 格式，每行包含一个 `text` 字段，例如：
+自己准备一份 `dataset/pretrain.jsonl`，每行一个 `text` 字段：
 
 ```json
-{"text": "语言模型通过预测下一个 token 学习文本中的规律。"}
-{"text": "TinyMind 是一个用于学习 Transformer 的小型中文语言模型。"}
+{"text": "这里放一段训练文本。"}
+{"text": "每行是一条样本，训练时会分词、截断，并补齐到指定长度。"}
 ```
 
-将自己的语料保存为 `dataset/pretrain.jsonl`。这些示例仅用于说明格式，有意义的训练需要足够规模和质量的语料。
-
-SFT 数据集读取 `conversations` 字段：
-
-```json
-{"conversations": [{"role": "user", "content": "什么是语言模型？"}, {"role": "assistant", "content": "语言模型学习文本序列的概率分布。"}]}
-```
-
-DPO 数据集读取 `chosen` 和 `rejected` 字段，两者均为包含 `role`、`content` 的消息列表。
-
-## 开始预训练
-
-**从 `trainer/` 目录执行训练命令**，当前初始化工具默认按 `../model` 查找分词器，按 `../out` 查找权重。
+训练要进入 `trainer/` 目录，分词器和权重路径目前按这个工作目录读取：
 
 ```bash
 cd trainer
@@ -114,51 +85,31 @@ python train_pretrain.py \
   --data_path ../dataset/pretrain.jsonl \
   --save_dir ../out \
   --from_weight none \
-  --hidden_size 512 \
-  --num_hidden_layers 8 \
-  --max_seq_len 512 \
   --batch_size 4 \
-  --accumulation_steps 8 \
+  --max_seq_len 512 \
   --epochs 1
 ```
 
-预训练脚本默认优先选择 CUDA，其次 MPS，最后 CPU。可通过 `--device cuda:0`、`--device mps` 或 `--device cpu` 显式指定；显存或内存不足时可降低 `--batch_size` 或 `--max_seq_len`。
+脚本会优先选择 CUDA，其次 MPS，最后 CPU，也可以用 `--device` 指定。内存不够就先减小 batch size 或序列长度。默认权重存到 `out/pretrain_512.pth`，恢复训练的状态存在 `checkpoints/`，续训参数是 `--from_resume 1`。
 
-默认配置的输出权重为 `out/pretrain_512.pth`，可恢复训练的状态文件保存在 `checkpoints/`。在相同目录与配置下使用 `--from_resume 1` 尝试恢复已有检查点。
-
-使用两张 NVIDIA GPU 的示例（同样在 `trainer/` 目录执行）：
-
-```bash
-torchrun --standalone --nproc_per_node=2 train_pretrain.py \
-  --data_path ../dataset/pretrain.jsonl \
-  --save_dir ../out \
-  --from_weight none
-```
-
-## 文本生成
-
-完成训练后，回到项目根目录运行：
+拿到权重后，回到根目录试生成：
 
 ```bash
 cd ..
-python eval.py \
-  --load_from model \
-  --save_dir out \
-  --weight pretrain \
-  --hidden_size 512 \
-  --num_hidden_layers 8 \
-  --max_new_tokens 128 \
-  --device cpu
+python eval.py --weight pretrain --max_new_tokens 128 --device cpu
 ```
 
-启动后选择 `0` 使用预设问题，选择 `1` 手动输入；手动模式输入空行结束。模型结构参数须与训练时保持一致。使用 NVIDIA GPU 时可将设备改为 `--device cuda`；当前推理脚本会将 MPS 请求回退为 CPU。
+选 `0` 跑预设问题，选 `1` 自己输入，空行退出。有 NVIDIA GPU 可以改成 `--device cuda`；当前推理入口遇到 MPS 会回退到 CPU。预训练模型先学的是续写，聊天还需要后续指令微调。
 
-预训练权重主要用于文本续写，对话质量需要后续指令微调。当前 `eval.py` 的 LoRA 加载分支会抛出 `NotImplementedError`，暂时保持默认 `--lora_weight None`。
+## 代码从哪里看
 
-## 建议阅读顺序
-
-1. `model/__init__.py`：了解模型配置与各维度。
-2. `model/TinyModel.py`：沿 RMSNorm → RoPE → GQA → 前馈网络 → Transformer Block → Causal LM 阅读。
-3. `dataset/lm_dataset.py`：理解 tokenization、padding、attention mask 与 labels 的关系。
-4. `trainer/train_pretrain.py`、`trainer/trainer_utils.py`：串起训练循环、优化器与检查点。
-5. `eval.py`、`model/model_lora.py`：继续研究自回归生成与参数高效微调。
+```text
+model/TinyModel.py         RMSNorm → RoPE → GQA → FFN → 完整模型
+model/__init__.py          模型配置
+dataset/lm_dataset.py      分词、padding、标签与 loss mask
+trainer/train_pretrain.py  预训练循环
+trainer/trainer_utils.py   初始化、学习率、检查点与分布式工具
+eval.py                   加载权重与生成
+model/model_lora.py        LoRA 适配器
+torch_methods/            写模型时用到的 PyTorch 基础操作练习
+```
