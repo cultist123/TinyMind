@@ -12,9 +12,36 @@
 
 ## 技术笔记
 
-- [MiniMind：模型实现与张量数据流](https://cultist123.github.io/posts/minimind/)：GQA、FFN、残差连接与张量数据流。
-- [RoPE 与 YaRN：位置编码与长度外推](https://cultist123.github.io/posts/rope-yarn/)：位置编码原理与 `precompute_freqs_cis`、`apply_rotary_pos_emb` 实现。
-- [Transformer](https://cultist123.github.io/posts/transformer/)：注意力机制、多头注意力、掩码与前馈网络。
+相关原理、公式推导与实现记录整理在[个人博客](https://cultist123.github.io/)。
+
+### 模型基础
+
+- [序列模型：N 元语法、RNN 与困惑度](https://cultist123.github.io/posts/sequence-models/)
+- [Transformer](https://cultist123.github.io/posts/transformer/)
+- [GPT 与 BERT：预训练、微调与 Prompt](https://cultist123.github.io/posts/gpt-bert/)
+- [GPT-3 与 GPT-4：Few-shot 与模型演进](https://cultist123.github.io/posts/gpt3-gpt4/)
+
+### 模型实现
+
+- [MiniMind：模型实现与张量数据流](https://cultist123.github.io/posts/minimind/)
+- [LayerNorm 与 RMSNorm：原理与实现](https://cultist123.github.io/posts/rmsnorm/)
+- [RoPE 与 YaRN：位置编码与长度外推](https://cultist123.github.io/posts/rope-yarn/)
+- [Padding Mask：填充掩码与因果掩码](https://cultist123.github.io/posts/padding-mask/)
+
+### 指令微调与 LoRA
+
+- [SFT：指令格式与回答部分的 Loss](https://cultist123.github.io/posts/sft/)
+- [LoRA](https://cultist123.github.io/posts/lora/)
+
+### 强化学习与对齐
+
+- [强化学习基础：MDP、策略与回报](https://cultist123.github.io/posts/mdp/)
+- [Bellman 方程：价值迭代与策略迭代](https://cultist123.github.io/posts/bellman/)
+- [Policy Gradient：推导、Baseline 与训练流程](https://cultist123.github.io/posts/policy-gradient/)
+- [Actor-Critic：从策略梯度到 A2C 与 A3C](https://cultist123.github.io/posts/actor-critic/)
+- [PPO：重要性采样、约束与 Clip](https://cultist123.github.io/posts/ppo/)
+- [RLHF-PPO：四个模型、GAE 与训练代码](https://cultist123.github.io/posts/rlhf-ppo/)
+- [GRPO：目标函数与组内优势估计](https://cultist123.github.io/posts/grpo/)
 
 ## 使用方法
 
