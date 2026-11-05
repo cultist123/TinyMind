@@ -63,8 +63,8 @@ TinyMind/
 使用 uv 安装项目依赖：
 
 ```bash
-git clone https://github.com/cultist123/TinyMind-clean.git
-cd TinyMind-clean
+git clone https://github.com/cultist123/TinyMind.git
+cd TinyMind
 uv sync
 source .venv/bin/activate
 ```
