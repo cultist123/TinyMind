@@ -8,40 +8,9 @@
 
 8 层 Decoder，隐藏维度 512，8 个 Query 头共享 2 个 KV 头，词表大小 6400。输入 Embedding 和输出 LM Head 共享权重。
 
-```mermaid
-flowchart TD
-    text["输入文本"] --> tok["Tokenizer"]
-    tok --> ids["Token IDs · B × T"]
-    ids --> emb["Embedding · B × T × 512"]
+[![MiniMind 模型架构与数据流](https://raw.githubusercontent.com/cultist123/cultist123.github.io/main/dist/images/obsidian/54c927cb5358.png)](https://raw.githubusercontent.com/cultist123/cultist123.github.io/main/dist/images/obsidian/54c927cb5358.png)
 
-    subgraph decoder["Decoder Block × 8"]
-        direction TB
-        x["输入 x"] --> norm1["RMSNorm"]
-        norm1 --> attn["GQA 注意力<br/>8 个 Q 头 / 2 个 KV 头<br/>Q、K 应用 RoPE · 因果掩码"]
-        attn --> add1["＋"]
-        x --> add1
-        add1 --> norm2["RMSNorm"]
-        norm2 --> ffn["门控 FFN<br/>SiLU 门控 × 升维分支 → 降维"]
-        ffn --> add2["＋"]
-        add1 --> add2
-    end
-
-    emb --> x
-    add2 --> norm["RMSNorm"]
-    norm --> head["LM Head · 512 → 6400"]
-    head --> logits["Logits · B × T × 6400"]
-    logits --> loss["训练：预测下一个 token<br/>与右移后的标签计算交叉熵"]
-    logits --> sample["生成：取最后位置的 logits 采样<br/>把新 token 接回输入，继续生成"]
-
-    classDef input fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
-    classDef core fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
-    classDef output fill:#dcfce7,stroke:#16a34a,color:#14532d
-    class text,tok,ids,emb input
-    class norm1,attn,norm2,ffn,norm core
-    class head,logits,loss,sample output
-```
-
-`B` 是 batch size，`T` 是序列长度。图中的两条跳线就是残差连接。实现主要在 [`model/TinyModel.py`](model/TinyModel.py)，参数在 [`model/__init__.py`](model/__init__.py)。
+图来自我的[MiniMind 学习笔记](https://cultist123.github.io/posts/minimind/)。模型实现在 [`model/TinyModel.py`](model/TinyModel.py)，参数在 [`model/__init__.py`](model/__init__.py)。
 
 ## 对应的学习笔记
 
