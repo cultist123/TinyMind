@@ -51,14 +51,6 @@ flowchart TD
 
 笔记里有些代码还叫 `MokioMind`，是早期的命名，现在仓库统一叫 TinyMind。感谢 MiniMind 原作者的开源代码和学习资源。
 
-## 现在写到哪了
-
-模型主体、预训练入口、文本生成入口已经写好，数据集部分有 Pretrain、SFT 和 DPO，LoRA 也有注入和保存加载的实现。
-
-后面的训练阶段还在整理：部分 SFT / DPO / LoRA / PPO 脚本仍引用旧模块，SFT 的数据返回格式也需要和训练入口统一；GRPO 脚本还是空的。MoE 目前只有配置，没有专家网络，`eval.py` 也还没接入 LoRA 加载。
-
-仓库暂时没有上传训练语料、模型权重和评测结果，下面保留的是预训练与生成入口的用法，还没有做完整的端到端验证。
-
 ## 跑一下
 
 需要 Python 3.13+，依赖见 [`pyproject.toml`](pyproject.toml)。使用 uv：
