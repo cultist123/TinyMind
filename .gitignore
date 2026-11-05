@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Code Runner temp file
+tempCodeRunnerFile.py
+
+# 数据集与权重
+dataset/*.jsonl
+*.pth
+checkpoints/
+out/
